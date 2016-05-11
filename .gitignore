@@ -1,0 +1,7 @@
+_minted-report/
+*.aux
+*.dvi
+*.pdf
+*.log
+*.pdf
+*.ps

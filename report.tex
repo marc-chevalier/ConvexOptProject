@@ -1,0 +1,351 @@
+\documentclass[a4paper, twoside, 10pt]{article}
+\usepackage[en]{cheche}
+
+\title{About "Abstract Interpretation Meets Convex Optimization"}
+\author{Marc \textsc{Chevalier}}
+
+\begin{document}
+
+\maketitle
+
+\section{Introduction}
+
+Abstract interpretation is a way to prove formally the absence of flaws in a program. In some case, we can use it to prove to correctness.
+
+Abstract interpretation define an abstract semantic which have to be an approximation of the concrete semantic. If this approximation is an overapproximation, then, all possible behaviour is simulated by the abstract semantic. In this case, the analysis is said \textit{sound}. Such an analysis is very powerful: it allows to prove that there is no flaws in the program (which is indecidable in general) if the program with the abstract semantic is correct.
+
+Concretely, concrete semantic is the semantic of the language and concrete values are integers, floating point number, pointer\dots. The goal is to associate at each point of the program an abstract value.
+
+\bigskip
+
+For instance, a simple and often used abstract interpretation is the value analysis. In this method, the abstract values form a complete lattice of set of concrete values. For this example, we consider the only abstract values allowed are intervals (they form a complete lattice).
+
+These intervals represent an over-approximation of the possibles values.
+
+For instance, consider the program
+
+\begin{minted}{c}
+int f(int x)
+{
+    return 1/x;
+}
+\end{minted}
+will lead to the analysis
+\begin{minted}[mathescape]{c}
+int f(int x)
+{
+    // $\texttt{x} \in \entiers{int\_min}{int\_max}$
+    return 1/x; // $0 \in \entiers{int\_min}{int\_max} \Ra $error
+}
+\end{minted}
+Since, 0 is a possible value, we detect an error.
+
+But, we have
+\begin{minted}[mathescape]{c}
+int f(int x)
+{
+    // $\texttt{x} \in \entiers{int\_min}{int\_max}$
+    x = abs(x)
+    // $\texttt{x} \in \entiers{0}{int\_max}$
+    x++;
+    // $\texttt{x} \in \entiers{1}{int\_max}$
+    return 1/x; // $0 \not\in \entiers{1}{int\_max} \Ra $OK!
+}
+\end{minted}
+Indeed, the integer division is well define when the denominator is non zero. So, this program is safe.
+
+But, check if a program is safe is not decidable\footnote{For more informations on computability, cf. \url{http://perso.ens-lyon.fr/marc.chevalier/Calculabilite/Calculabilite.pdf}}. Thus, since this method allow to detect all flaws, it necessarily yields fake warnings. We can illustrate on
+\begin{minted}[mathescape]{c}
+int f(int x)
+{
+    // $\texttt{x} \in \entiers{int\_min}{int\_max}$
+    if(x==0)
+        // $\texttt{x} \in \entiers{0}{0}$
+        return 1;
+    // $\texttt{x} \in \entiers{int\_min}{int\_max}$
+    return 1/x; // $0 \in \entiers{int\_min}{int\_max} \Ra $error
+}
+\end{minted}
+Indeed, after the return, the \texttt{x} can be zero. Express as an set, we have $\texttt{x} \in \entiers{int\_min}{-1} \cup \entiers{1}{int\_max}$. But this is not an interval. The smallest abstract value in the lattice  containing $\entiers{int\_min}{-1}$ and $\entiers{1}{int\_max}$ (denoted by $\entiers{int\_min}{-1} \vee \entiers{1}{int\_max}$) is $\entiers{int\_min}{int\_max}$. Thus we detect an error which does not exist. There is two strategies to avoid such errors: more complex abstract analysis or handmade annotations.
+
+With the previous example, we can write  using ACSL annotations to avoid the wrong warning.
+\begin{minted}[mathescape]{c}
+int f(int x)
+{
+    //@ assert $\texttt{\textcolor{red}{x < 0}}$ || $\texttt{\textcolor{blue}{x >= 0}}$;
+    // $\textcolor{red}{\texttt{x} \in \entiers{int\_min}{-1}}$
+    // $\textcolor{blue}{\texttt{x} \in \entiers{0}{int\_max}}$
+    if(x==0)
+        // $\textcolor{red}{\texttt{x}\in\emptyset}$ (unreachable)
+        // $\textcolor{blue}{\texttt{x} \in \entiers{0}{0}}$
+        return 1;
+    // $\textcolor{red}{\texttt{x} \in \entiers{int\_min}{-1}}$
+    // $\textcolor{blue}{\texttt{x} \in \entiers{1}{int\_max}}$
+    return 1/x; // $0 \not\in \entiers{1}{int\_max} \wedge 0 \not\in \entiers{int\_min}{-1} \Ra$ OK
+}
+\end{minted}
+Due to the annotation, a software like Frama-C will perform one analysis by subcase.
+
+\bigskip
+
+This method is effective but have to be done by an expert. So it can be long and expensive.
+
+In the other hand, we can try to automate this process for current cases, knowing that there will always be difficult cases only avoidable by hand. For instance, a method which can work in this case (implemented in the Spalter plugin of Frama-C) is to separate in two pieces the domain of the parameters when the analysis fails. This is exactly what the previous annotation does. 
+
+Sometime, simply, this abstract domain is not fitted to the problem. Another common abstract domain is made of inequality of linear combinations of variables. Thus, the abstract values are not intervals for each variables ie. a cuboid in the space of all variables, but a polytope in the set of all variables (which strictly include the previous case).
+
+But again, this is a very weak way to handle relation between variables. The idea of the paper is to use polynomial constraints. In particular, this allows intervals and linear constraints.
+
+Here, we see that polynomial constraints are quickly way less intuitive. So, it may be difficult to annotate the code by hand. The idea is to use convex optimization techniques to find good constants in the polynomial constraints.
+
+%\section{Running Example}
+%
+%The paper is centred on the following example.
+%
+%\begin{minted}[mathescape]{c}
+%/*@
+%    \requires 0<=x_1<=1;
+%    \requires 0<=x_2<=1;
+%*/
+%void f(float x_1, float x_2)
+%{
+%    while(true)
+%    {
+%        float tmp = x_1 + 0.01 * x_2;
+%        x_2 = -0.01 * x_1 + 0.99 * x_2;
+%        x_1 = tmp;
+%    }
+%}
+%\end{minted}
+%
+%\[
+%    \left(\begin{matrix}
+%        x_1\\x_2
+%    \end{matrix}\right) := \left(\begin{matrix}
+%        1 & 0.01\\-0.01&0.99
+%    \end{matrix}\right)\left(\begin{matrix}
+%        x_1\\x_2
+%    \end{matrix}\right)
+%\]
+%
+%We want to find upper bound on the polynomials
+%
+%\[
+%    \begin{aligned}
+%        -&x_1\\
+%        -&x_2\\
+%        &x_1\\
+%        &x_2\\
+%        2x_1^2+&3x_2^2+2x_1x_2
+%    \end{aligned}
+%\]
+%
+%We note that the four firsts encode an interval for $x_1$ and $x_2$. The last function is found using dynamical system methods and is a Lyapunov function for this system.
+%
+%\bigskip
+%
+%The program is clearly to complicated to find upper bounds by hand.
+
+\section{More formal things}
+
+\subsection{The program model}
+
+The statements from which programs are made are of the form
+\[
+    g(x) \leqslant 0: \mathtt{x := p(x);}
+\]
+where $g\in\RR^k[X_1,\ldots,X_n]$, $p\in\RR^n[X_1,\ldots,X_n]$ and $x=(x_1,\ldots,x_n)^T$. The statements are understood as $\mathtt{x := p(x);}$ provided $(x) \leqslant 0$.
+
+\bigskip
+
+A program is represented by their CFG: a triple $(N, E, st)$ where
+\begin{itemize}
+    \item $N$ is the finite set of program points,
+    \item $E \subseteq N\times Stmt \times N$ is the set of control flow edges,
+    \item $st \in N$ is the start point.
+\end{itemize}
+
+If we allow conditional branching (which is not explicit), this model is clearly \textsc{Turing}-complete.
+
+
+\subsection{The \textsc{Galois} connection}
+
+The abstract values are mapping of $P \to \overline{\RR}$, where $P$ is the set of chosen polynomials. The abstract domain is $\parties{\RR^n}$. Thus, we define the concretization
+\[
+    \begin{aligned}
+        \gamma:(P\to\overline{\RR}) &\to \parties{\RR^n}\\
+        v &\mapsto \set{x\in\RR^n}{\forall p\in P, p(x) \leqslant v(p)}
+    \end{aligned}
+\]
+and the abstraction
+\[
+    \begin{aligned}
+        \alpha:\parties{\RR^n} &\to (P\to\overline{\RR})\\
+        X &\mapsto \bigwedge \set{v:P\to\overline{\RR}}{X\subseteq \gamma(v)}
+    \end{aligned}
+\]
+
+In other words, the abstract value is an upper bound on the values taken by the polynomials evaluated in the possible points.
+
+\subsection{Three semantics}
+
+
+\subsubsection{Collecting semantics}
+
+For a statement $s = (g(x) \leqslant 0: \mathtt{x := p(x);})$, we define the collecting semantics for this statement as
+\[
+    \begin{aligned}
+        \entiers{s}:\parties{\RR^n} &\to \parties{\RR^n}\\
+        X &\mapsto \set{p(x)}{x \in X, g(x) \leqslant 0}
+    \end{aligned}
+\]
+
+In other words, if $X$ is the set of reachable states before the statement, $\entiers{s}(X)$ is the set of reachable states after the statement.
+
+\bigskip
+
+The collecting semantic $V$ of a program $G=(N,E,st)$ given an initial state set $I \subseteq\RR^n$ is a map from $N$ to $\parties{\RR^n}$ which is the least solution of
+\[
+    \begin{aligned}
+        I &\subseteq V(st)\\
+        \forall (u,s,v) \in E, \entiers{s}(V(u)) &\subseteq V(v)
+    \end{aligned}
+\]
+
+$V$ is the function which maps the program point to the possible states.
+
+Obviously, this semantic is not usable in practice. So, we define the abstract semantic.
+
+\subsubsection{Abstract semantics}
+
+For a statement $s = (g(x) \leqslant 0: \mathtt{x := p(x);})$, we define the abstract semantics for this statement as
+\[
+    \begin{aligned}
+        \entiers{s}^\#: (P\to \overline{\RR}) &\to P\to \overline{\RR} \\
+        X &\mapsto \alpha \circ \entiers{s} \circ \gamma(X)
+    \end{aligned}
+\]
+
+The abstract semantic $V^\#$ of a program $G=(N,E,st)$ given an initial state set $I \subseteq\RR^n$ is a map from $N$ to $\parties{\RR^n}$ which is the least solution of
+\[
+    \begin{aligned}
+        \alpha(I) &\leqslant V^\#(st)\\
+        \forall (u,s,v) \in E, \entiers{s}^\#(V^\#(u)) &\geqslant V^\#(v)
+    \end{aligned}
+\]
+
+\begin{lemma}
+    For all program point $v$
+    \[
+        V(v) \subseteq \gamma(V^\#(v))    
+    \]
+    and
+    \[
+        \alpha(V(v)) \leqslant V^\#(v)
+    \]
+\end{lemma}
+
+Thus, the abstract semantic is simpler to represent and sound since this is an overapproximation. However, the computation is still not easy. Moreover, we aim to approach as precisely as possible the abstract semantics, but to do that, we would appreciate a concave semantics, but abstract semantics is not always convex. Thus, the idea is to define an concave overapproximation of the abstract semantics on which we can perform convex optimization methods.
+
+\subsubsection{Relaxed abstract semantics}
+
+The relaxed abstract semantics of a statement is a function $\entiers{s}^\R$ such that
+\begin{itemize}
+    \item $\entiers{s}^\R \geqslant \entiers{s}^\#$ (safe),
+    \item $\entiers{s}^\R$ is monotone and concave.
+\end{itemize}
+
+The relaxed abstract semantic $V^\R$ of a program $G=(N,E,st)$ given an initial state set $I \subseteq\RR^n$ is a map from $N$ to $\parties{\RR^n}$ which is the least solution of
+\[
+    \begin{aligned}
+        \alpha(I) &\leqslant V^\R(st)\\
+        \forall (u,s,v) \in E, \entiers{s}^\R(V^\R(u)) &\geqslant V^\R(v)
+    \end{aligned}
+\]
+
+\begin{lemma}
+    For all program point $v$
+    \[
+        V^\#(v) \leqslant V^\R(v)
+    \]
+\end{lemma}
+
+Thus, the relaxed semantics is a safe overapproximation.
+
+In general there is no simple relaxed abstract semantics.
+
+\section{Time to introduce convexity}
+
+We want to solve the relaxed abstract semantics $V^\R$ of a program as a system of concave monotone inequations.
+
+We name $\C(G, I)$ the system of inequation we obtain as the reduction of the relaxed abstract semantics of the program $G$ with the initial set of states $I$.
+
+This set is made of
+\[
+    \begin{array}{ll}
+        \forall p\in P, &x_{st, p} \geqslant \alpha(I)(p) \\
+        \forall p \in P, \forall (u,s,v)\in E, &x_{v, p} \geqslant (\entiers{s}^\R\set{q\mapsto x_{u,q}}{q \in P})(p) 
+    \end{array}
+\]
+
+The set of variables is 
+\[
+    X = \set{x_{v, p}}{(v,p)\in N\times P}
+\]
+
+\begin{lemma}
+    Let $\rho^*:X\to \overline{\RR}$ be the least solution of $\C(G,I)$. We have
+    \[
+        \forall n\in N,\forall p\in P, V^\R(u)(p) = \rho^*(x_{v, p})
+    \]
+\end{lemma}
+
+The left hand-side members of the inequations of this system are concave and monotone.
+
+\section{Strategies}
+
+\subsection{The \texorpdfstring{$\wedge$}{Min}-Strategy Iteration Approach}
+
+Here,we aim to find a small fixpoint of a map of the kind $ f:E\to E$ where $f(x) = \min\set{\pi(x)}{\pi\in\Pi}$ where $\Pi$ verifies two good properties:
+\begin{itemize}
+    \item Lower selection: given an $x$, we can find the $\pi \in \Pi$ such that $f(x) = \pi(x)$,
+    \item Simple: for each $\pi \in \Pi$, it is easy to find the least fixpoint $\mu\pi$ of $\pi$.
+\end{itemize}
+
+These $\pi$ are named the $\wedge$-strategies for $f$.
+
+Dually, if $f(x) = \max\set{\sigma(x)}{\sigma\in\Sigma}$ where $\Sigma$ is simple (for the largest fixpoint) and admits upper selections, the $\sigma$ are the $\vee$-strategies for $f$.
+
+
+\begin{algorithm}
+    \caption{The $\min$-Strategy Improvement Algorithm}
+    \DontPrintSemicolon
+    $k = 0$\;
+    Choose $\pi^{(0)} \in \Pi$\;
+    \While{$x^{(k)} \neq f(x^{(k)})$}{
+        Take $\pi^{(k+1)} \in \Pi$ such that $f(x^{(k)}) = \pi^{(k+1)}(x^{(k)})$.\;
+        k++
+    }
+    \Return $x^{(k)}$
+\end{algorithm}
+
+\begin{theorem}
+    \begin{itemize}
+        \item $(x^{(i)})$ is a decreasing sequence of post-fixpoint of $f$ that is strictly decreasing until it is stable.
+        \item If it is stable then we have found a solution ie. a fixpoint of $f$.
+        \item $\forall i\in\NN, x^{(i)} \leqslant f^i(x^{(0)})$
+        \item If the set $\Pi$ of all $\wedge$-strategy is finite, then termination is guaranteed after at most $\card{\Pi}$ steps.
+    \end{itemize}
+\end{theorem}
+
+
+Thus, we have a sequence of safe overapproximation. We can stop the algorithm any time and use the last $x^{(k)}$. It may be not precise but it will be safe.
+
+Nevertheless, we do not necessarily find the smallest fixpoint, especially when the function is not a contraction.
+
+\subsection{The \texorpdfstring{$\vee$}{Max}-Strategy Improvement Algorithm}
+
+
+
+
+\end{document}
