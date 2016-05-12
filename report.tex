@@ -150,40 +150,53 @@ Here, we see that polynomial constraints are quickly way less intuitive. So, it 
 
 \subsection{The program model}
 
-The statements from which programs are made are of the form
-\[
-    g(x) \leqslant 0: \mathtt{x := p(x);}
-\]
-where $g\in\RR^k[X_1,\ldots,X_n]$, $p\in\RR^n[X_1,\ldots,X_n]$ and $x=(x_1,\ldots,x_n)^T$. The statements are understood as $\mathtt{x := p(x);}$ provided $(x) \leqslant 0$.
+\begin{definition}[Statement]
+    The statements from which programs are made are of the form
+    \[
+        g(x) \leqslant 0: \mathtt{x := p(x);}
+    \]
+    where $g\in\RR^k[X_1,\ldots,X_n]$, $p\in\RR^n[X_1,\ldots,X_n]$ and $x=(x_1,\ldots,x_n)^T$. The statements are understood as $\mathtt{x := p(x);}$ provided $(x) \leqslant 0$.
+\end{definition}
+
+\begin{notation}
+    The set of all statements (which exists obviously) is denoted by $Stmt$.
+\end{notation}
 
 \bigskip
 
-A program is represented by their CFG: a triple $(N, E, st)$ where
-\begin{itemize}
-    \item $N$ is the finite set of program points,
-    \item $E \subseteq N\times Stmt \times N$ is the set of control flow edges,
-    \item $st \in N$ is the start point.
-\end{itemize}
+\begin{definition}[Program]
+    A program is represented by their CFG: a triple $(N, E, st)$ where
+    \begin{itemize}
+        \item $N$ is the finite set of program points,
+        \item $E \subseteq N\times Stmt \times N$ is the set of control flow edges,
+        \item $st \in N$ is the start point.
+    \end{itemize}
+\end{definition}
 
-If we allow conditional branching (which is not explicit), this model is clearly \textsc{Turing}-complete.
+If we allow the branching to be conditional (which is not explicit), this model is clearly \textsc{Turing}-complete.
 
 
 \subsection{The \textsc{Galois} connection}
 
-The abstract values are mapping of $P \to \overline{\RR}$, where $P$ is the set of chosen polynomials. The abstract domain is $\parties{\RR^n}$. Thus, we define the concretization
-\[
-    \begin{aligned}
-        \gamma:(P\to\overline{\RR}) &\to \parties{\RR^n}\\
-        v &\mapsto \set{x\in\RR^n}{\forall p\in P, p(x) \leqslant v(p)}
-    \end{aligned}
-\]
-and the abstraction
-\[
-    \begin{aligned}
-        \alpha:\parties{\RR^n} &\to (P\to\overline{\RR})\\
-        X &\mapsto \bigwedge \set{v:P\to\overline{\RR}}{X\subseteq \gamma(v)}
-    \end{aligned}
-\]
+The abstract values are mapping of $P \to \overline{\RR}$, where $P$ is the set of chosen polynomials. The abstract domain is $\parties{\RR^n}$. Thus, we define the concretization and the abstraction.
+\begin{notation}[Concretization]
+    We name concretization the function
+    \[
+        \begin{aligned}
+            \gamma:(P\to\overline{\RR}) &\to \parties{\RR^n}\\
+            v &\mapsto \set{x\in\RR^n}{\forall p\in P, p(x) \leqslant v(p)}
+        \end{aligned}
+    \]
+\end{notation}
+\begin{notation}[abstraction]
+    We name concretization the function
+    \[
+        \begin{aligned}
+            \alpha:\parties{\RR^n} &\to (P\to\overline{\RR})\\
+            X &\mapsto \bigwedge \set{v:P\to\overline{\RR}}{X\subseteq \gamma(v)}
+        \end{aligned}
+    \]
+\end{notation}
 
 In other words, the abstract value is an upper bound on the values taken by the polynomials evaluated in the possible points.
 
@@ -192,18 +205,25 @@ In other words, the abstract value is an upper bound on the values taken by the 
 
 \subsubsection{Collecting semantics}
 
-For a statement $s = (g(x) \leqslant 0: \mathtt{x := p(x);})$, we define the collecting semantics for this statement as
-\[
-    \begin{aligned}
-        \entiers{s}:\parties{\RR^n} &\to \parties{\RR^n}\\
-        X &\mapsto \set{p(x)}{x \in X, g(x) \leqslant 0}
-    \end{aligned}
-\]
+The collecting semantics aims to collect all possible states at each program point. In order to define the collecting semantics of a program, we need to define what happen at each statement.
+
+\begin{definition}[Collecting semantics of a statement]
+    For a statement $s = (g(x) \leqslant 0: \mathtt{x := p(x);})$, we define the collecting semantics for this statement as
+    \[
+        \begin{aligned}
+            \entiers{s}:\parties{\RR^n} &\to \parties{\RR^n}\\
+            X &\mapsto \set{p(x)}{x \in X, g(x) \leqslant 0}
+        \end{aligned}
+    \]
+\end{definition}
 
 In other words, if $X$ is the set of reachable states before the statement, $\entiers{s}(X)$ is the set of reachable states after the statement.
 
 \bigskip
 
+Now, we can simply collect the result of all incoming edges when we initialize the starting program point.
+
+\begin{definition}[Collecting semantics of a program]
 The collecting semantic $V$ of a program $G=(N,E,st)$ given an initial state set $I \subseteq\RR^n$ is a map from $N$ to $\parties{\RR^n}$ which is the least solution of
 \[
     \begin{aligned}
@@ -211,6 +231,7 @@ The collecting semantic $V$ of a program $G=(N,E,st)$ given an initial state set
         \forall (u,s,v) \in E, \entiers{s}(V(u)) &\subseteq V(v)
     \end{aligned}
 \]
+\end{definition}
 
 $V$ is the function which maps the program point to the possible states.
 
@@ -218,14 +239,23 @@ Obviously, this semantic is not usable in practice. So, we define the abstract s
 
 \subsubsection{Abstract semantics}
 
-For a statement $s = (g(x) \leqslant 0: \mathtt{x := p(x);})$, we define the abstract semantics for this statement as
-\[
-    \begin{aligned}
-        \entiers{s}^\#: (P\to \overline{\RR}) &\to P\to \overline{\RR} \\
-        X &\mapsto \alpha \circ \entiers{s} \circ \gamma(X)
-    \end{aligned}
-\]
+Since the collecting semantics is not really useful, we define abstract semantics which is the core of abstract interpretation. We want the abstract semantics to overapproximate the collecting semantics to make it safe. And we hope the abstract semantics is more easy to compute.
 
+\begin{definition}[Abstract semantics of a statement]
+    For a statement $s = (g(x) \leqslant 0: \mathtt{x := p(x);})$, we define the abstract semantics for this statement as
+    \[
+        \begin{aligned}
+            \entiers{s}^\#: (P\to \overline{\RR}) &\to P\to \overline{\RR} \\
+            X &\mapsto \alpha \circ \entiers{s} \circ \gamma(X)
+        \end{aligned}
+    \]
+\end{definition}
+
+\bigskip
+
+As previously, we use the result of incoming edges to compute the abstract value at each program point. But, this time, the union ($\cup$) operator makes no sense. Instead we have to use the upper bound ($\vee$).
+
+\begin{definition}[Abstract semantics of a program]
 The abstract semantic $V^\#$ of a program $G=(N,E,st)$ given an initial state set $I \subseteq\RR^n$ is a map from $N$ to $\parties{\RR^n}$ which is the least solution of
 \[
     \begin{aligned}
@@ -233,6 +263,7 @@ The abstract semantic $V^\#$ of a program $G=(N,E,st)$ given an initial state se
         \forall (u,s,v) \in E, \entiers{s}^\#(V^\#(u)) &\geqslant V^\#(v)
     \end{aligned}
 \]
+\end{definition}
 
 \begin{lemma}
     For all program point $v$
@@ -249,12 +280,19 @@ Thus, the abstract semantic is simpler to represent and sound since this is an o
 
 \subsubsection{Relaxed abstract semantics}
 
-The relaxed abstract semantics of a statement is a function $\entiers{s}^\R$ such that
-\begin{itemize}
-    \item $\entiers{s}^\R \geqslant \entiers{s}^\#$ (safe),
-    \item $\entiers{s}^\R$ is monotone and concave.
-\end{itemize}
+As said above, we hope the abstract semantics is easier to compute. In this case, the abstract domain does not allow an easy computation. So, the idea is to use an overapproximation of the abstract semantics which we know to be monotone and concave and thus allow fast computation using convex optimization techniques.
 
+\begin{definition}[Relaxed abstract semantics of a statement]
+    A relaxed abstract semantics of a statement is a function $\entiers{s}^\R$ such that
+    \begin{itemize}
+        \item $\entiers{s}^\R \geqslant \entiers{s}^\#$ (safe),
+        \item $\entiers{s}^\R$ is monotone and concave.
+    \end{itemize}
+\end{definition}
+
+Just like for the abstract semantics.
+
+\begin{definition}[Relaxed abstract semantics of a statement]
 The relaxed abstract semantic $V^\R$ of a program $G=(N,E,st)$ given an initial state set $I \subseteq\RR^n$ is a map from $N$ to $\parties{\RR^n}$ which is the least solution of
 \[
     \begin{aligned}
@@ -262,6 +300,7 @@ The relaxed abstract semantic $V^\R$ of a program $G=(N,E,st)$ given an initial 
         \forall (u,s,v) \in E, \entiers{s}^\R(V^\R(u)) &\geqslant V^\R(v)
     \end{aligned}
 \]
+\end{definition}
 
 \begin{lemma}
     For all program point $v$
@@ -278,20 +317,24 @@ In general there is no simple relaxed abstract semantics.
 
 We want to solve the relaxed abstract semantics $V^\R$ of a program as a system of concave monotone inequations.
 
-We name $\C(G, I)$ the system of inequation we obtain as the reduction of the relaxed abstract semantics of the program $G$ with the initial set of states $I$.
+\begin{notation}
+    We name $\C(G, I)$ the system of inequation we obtain as the reduction of the relaxed abstract semantics of the program $G$ with the initial set of states $I$.
 
-This set is made of
-\[
-    \begin{array}{ll}
-        \forall p\in P, &x_{st, p} \geqslant \alpha(I)(p) \\
-        \forall p \in P, \forall (u,s,v)\in E, &x_{v, p} \geqslant (\entiers{s}^\R\set{q\mapsto x_{u,q}}{q \in P})(p) 
-    \end{array}
-\]
+    This set is made of
+    \[
+        \begin{array}{ll}
+            \forall p\in P, &x_{st, p} \geqslant \alpha(I)(p) \\
+            \forall p \in P, \forall (u,s,v)\in E, &x_{v, p} \geqslant (\entiers{s}^\R\set{q\mapsto x_{u,q}}{q \in P})(p) 
+        \end{array}
+    \]
+\end{notation}
 
-The set of variables is 
-\[
-    X = \set{x_{v, p}}{(v,p)\in N\times P}
-\]
+\begin{notation}
+    The set of variables is 
+    \[
+        X = \set{x_{v, p}}{(v,p)\in N\times P}
+    \]
+\end{notation}
 
 \begin{lemma}
     Let $\rho^*:X\to \overline{\RR}$ be the least solution of $\C(G,I)$. We have
@@ -343,9 +386,85 @@ Thus, we have a sequence of safe overapproximation. We can stop the algorithm an
 
 Nevertheless, we do not necessarily find the smallest fixpoint, especially when the function is not a contraction.
 
+However, in the concave case we have some cool results
+
+\begin{theorem}
+    The least solution of a system of inequations of the form $x_i \geqslant f(x_1, \ldots, x_n)$, where $f$ is a monotone and affine operator, can be computed by solving many linear programming problems, each of which can be constructed in linear time. Thus, it can be computed in polynomial time.
+\end{theorem}
+
+\begin{notation}
+    $\T_{k,1}$ is the smallest set of function containing
+    \begin{itemize}
+        \item $x\in\overline{\RR^k} \mapsto \angle{a\vert x} + b$ where $a\in\RR^k_{\geqslant 0}$ and $b \in \overline{\RR}$
+        \item $x\in\overline{\RR^k} \mapsto \begin{cases}
+            -\infty & x\leqslant y\\
+            \infty & x > y
+        \end{cases}$ where $y\in\overline{\RR^k}$
+    \end{itemize}
+\end{notation}
+
+\begin{notation}
+    \[
+        \begin{aligned}
+            \T_{k,1}^\vee &= \set{\bigveel_{i=1}^lf_i}{(f_1,\ldots,f_l)\in{\T_{k,1}}^l}\\
+            \T_{k,m}^\vee &= \set{(f_1,\ldots,f_m)^T}{(f_1,\ldots,f_m)\in{\T_{k,1}^\vee}^m}
+        \end{aligned}
+    \]
+\end{notation}
+
+Let $f = (f_1,\ldots,f_n)^T$ where $(f_1,\ldots,f_n) \in \left(\overline{\RR}^{\overline{\RR}^n}\right)^n$ are monotone and concave. The set $\Pi$ of $\wedge$-strategies for $f$ is defined as follows
+\[
+    \Pi = \set{\pi:\T_{n,n}^\vee}{\pi \geqslant f}
+\]
+
+So we can find a solution by using $\Pi$. $\Pi$ can be infinite but in some cases, there is a finite $\Pi' \subset \Pi$ such that $f(x) = \min\set{\pi(x)}{\pi\in\Pi'}$ so we can use the algorithm to solve the reduction of the relaxed abstract semantics.
+
 \subsection{The \texorpdfstring{$\vee$}{Max}-Strategy Improvement Algorithm}
 
+The idea here is to build an increasing stationary sequence to find a fixpoint and, since the sequence come from below, the fixpoint we find is the least one. In this scheme, we need a lower bound for the fixpoint (for instance $-\infty$) which will be iteratively improved.
 
+A $\vee$-strategy $\sigma$ for a system of equations is a function that maps every expression $\bigveel_{i=1}^k e_i$ is $\E$ to one of the immediate sub-expression $e_j$. We denote the set of all $\vee$-strategies by $\Sigma_\E$ (or $\Sigma$ when it is not ambiguous). We set
+\[
+    \E(\sigma) := \set{x = \sigma(e)}{x=e\in\E}
+\]
 
+\begin{definition}
+    Let $\E$ be a system of monotone equations, $(\sigma, \sigma')\in\Sigma^2$ be $\vee$-strategies for $\E$ and $\rho$ be a pre-solution of $\E(\sigma)$. The $\vee$-strategy $\sigma'$ is an improvement of $\sigma$ wrt. $\rho$ iff the following conditions are fulfilled
+    \begin{itemize}
+        \item $\rho \not\in \mathop{Sol}(\E) \Ra \entiers{\E(\sigma')}_\rho > \rho$
+        \item For all $\vee$-expression $\bigveel_{i=1}^k e_i$ occurring in $\E$, we have $\sigma'(e) \neq \sigma(e) \Ra \entiers{\sigma'(e)}_\rho > \entiers{\sigma(e)}_\rho$
+    \end{itemize}
+\end{definition}
+
+The idea is, given a lower bound $m$ for the least fixpoint, to find a function $f$ of the family such that $f(m) > m$
+
+\begin{algorithm}
+    \caption{The $\vee$-strategy improvement algorithm}
+    \DontPrintSemicolon
+    \Input{A system $\E$ \newline A $\vee$-strategy $\sigma_{init}$ for $\E$ \newline A pre-solution $\rho_{init}$ of $\E(\sigma_{init})$ with $\rho_{init} \leqslant\mu\entiers{\E}$}
+    $\sigma = \sigma_{init}$\;
+    $\rho = \rho_{init}$\;
+    \While{$\rho\not\in\mathop{Sol}{\E}$}{
+        $\sigma = $improvement of $\sigma$ wrt. $\rho$\;
+        $\rho = \mu_{\geqslant\rho}\entiers{\E(\sigma)}$
+    }
+    \Return $\rho$
+\end{algorithm}
+
+\begin{theorem}
+    Whenever the $\vee$-strategy improvement algorithm terminates, it computes the least solution $\mu\entiers{\E}$ of $\E$.
+\end{theorem}
+
+\begin{theorem}
+    Let $\E$ be a system of concave equations. The $\vee$-strategy improvement algorithm computes the least solution $\mu\entiers{\E}$ of $\E$ and performs at most $(\card{\Sigma}+\card{X})\card{X}$ iterations. If $\E$ is a system of concave equations, we have to solve $\card{X}$ convex optimization problems for every $\vee$-strategy improvement step.
+\end{theorem}
+
+\section{Comments}
+
+The first thing to comment is the lake of conditional branching. In this model of program, the branching seems non deterministic. But if we allow conditional branching, we can use the information of the condition to improve precision. However, if we use a statement of the form $g(x) \leqslant 0 : \texttt{x=x;}$, with the semantics that state that does not match precondition are discarded, after a branching, this branching can behave as a condition.
+
+The two algorithms to solve the relaxed relaxation have complementary advantages: sequence of safe values but approximate result vs. sequence of unsafe values but exact result. In practice, there will be pathological cases for each algorithm. We still need a human to make good choices.
+
+In fact, I doubt we will ever be able to implement such analysis. We need a lot of optimization step for each program point and will certainly take more time than current methods without improving cost, reliability, performance or precision.
 
 \end{document}
