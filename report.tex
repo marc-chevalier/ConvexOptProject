@@ -467,4 +467,6 @@ The two algorithms to solve the relaxed relaxation have complementary advantages
 
 In fact, I doubt we will ever be able to implement such analysis. We need a lot of optimization step for each program point and will certainly take more time than current methods without improving cost, reliability, performance or precision.
 
+However, we can be able to use some specific cases. For linear templates, this is simply value analysis using intervals for abstract values. The paper develops especially quadratic templates. Maybe this case (or some other specific cases) are indeed usable in practice.
+
 \end{document}
